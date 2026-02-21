@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cattle Feed Shop ERP</title>
+  <style>
+    body { margin:0; font-family:Arial; display:flex; flex-wrap:wrap; background:#f4f6f9; }
+    .sidebar { width:220px; background:#2c3e50; color:white; padding:20px; height:100vh; }
+    .sidebar h2 { text-align:center; margin-bottom:20px; }
+    .main { flex:1; padding:20px; min-width:300px; }
+    .card-container { display:flex; gap:15px; flex-wrap:wrap; margin-bottom:20px; }
+    .card { flex:1; min-width:150px; padding:15px; background:#3498db; color:white; border-radius:8px; text-align:center; }
+    .form-section { background:white; padding:15px; margin-bottom:20px; border-radius:8px; }
+    input, select { padding:7px; margin:5px; width:150px; }
+    button { padding:7px 12px; margin:5px; background:#2ecc71; border:none; color:white; cursor:pointer; }
+    button:hover { background:#27ae60; }
+    table { width:100%; border-collapse:collapse; background:white; margin-top:10px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:center; }
+    .delete-btn { background:red; padding:5px 8px; color:white; border:none; cursor:pointer; }
+    .low-stock { color:red; font-weight:bold; }
+    @media (max-width:800px){ .card-container{ flex-direction:column; } input, select{ width:100%; } }
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <h2>🐄 Cattle Feed Shop</h2>
+  <ul>
+    <li>Aatta</li>
+    <li>Golipend</li>
+    <li>Sarki</li>
+    <li>Shengpend</li>
+  </ul>
+</div>
+
+<div class="main">
+<h2>Dashboard</h2>
+<div class="card-container" id="productCards"></div>
+<div class="card-container">
+  <div class="card">Total Purchase ₹<span id="totalPurchase">0</span></div>
+  <div class="card">Total Sales ₹<span id="totalSales">0</span></div>
+  <div class="card">Total Profit ₹<span id="totalProfit">0</span></div>
+  <div class="card">Total Udhari ₹<span id="totalUdhari">0</span></div>
+  <div class="card">Total Bags <span id="totalBags">0</span></div>
+</div>
+
+<!-- Purchase Form -->
+<div class="form-section">
+<h3>Add Purchase</h3>
+<input type="date" id="purchaseDate">
+<select id="purchaseProduct">
+  <option>Aatta</option>
+  <option>Golipend</option>
+  <option>Sarki</option>
+  <option>Shengpend</option>
+</select>
+<input type="number" id="purchaseQty" placeholder="Quantity">
+<input type="number" id="purchasePrice" placeholder="Price per Bag">
+<button onclick="addPurchase()">Add Purchase</button>
+</div>
+
+<!-- Sale Form -->
+<div class="form-section">
+<h3>Add Sale</h3>
+<input type="date" id="saleDate">
+<input type="text" id="customerName" placeholder="Customer Name">
+<select id="saleProduct">
+  <option>Aatta</option>
+  <option>Golipend</option>
+  <option>Sarki</option>
+  <option>Shengpend</option>
+</select>
+<input type="number" id="saleQty" placeholder="Quantity">
+<input type="number" id="salePrice" placeholder="Selling Price per Bag">
+<select id="billType">
+  <option value="gst">With GST (5%)</option>
+  <option value="no">Without GST</option>
+</select>
+<select id="paymentType">
+  <option value="paid">Paid</option>
+  <option value="udhari">Udhari</option>
+</select>
+<input type="number" id="partialPayment" placeholder="Partial Payment if any">
+<button onclick="addSale()">Add Sale</button>
+</div>
+
+<h3>Transaction History</h3>
+<table>
+<thead>
+<tr><th>Date</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th><th>Total</th><th>Udhari</th><th>Delete</th></tr>
+</thead>
+<tbody id="history"></tbody>
+</table>
+
+<h3>Customer Ledger</h3>
+<input type="text" id="searchCustomer" placeholder="Search Customer" oninput="searchCustomerLedger()">
+<table>
+<thead><tr><th>Customer</th><th>Total Udhari</th></tr></thead>
+<tbody id="customerLedger"></tbody>
+</table>
+
+<table>
+<thead><tr><th>Date</th><th>Product</th><th>Qty</th><th>Total</th><th>Paid</th></tr></thead>
+<tbody id="customerHistoryTable"></tbody>
+</table>
+<p>Remaining Balance: ₹<span id="customerBalance">0</span></p>
+
+</div>
+
+<script>
+// DATA
+let products = { Aatta:{stock:0,purchasePrice:0}, Golipend:{stock:0,purchasePrice:0}, Sarki:{stock:0,purchasePrice:0}, Shengpend:{stock:0,purchasePrice:0} };
+let totalPurchase=0,totalSales=0,totalProfit=0,totalUdhari=0;
+let historyData=[];
+let customerBalances={};
+
+function updateDashboard(){
+  let cards="";
+  let totalBags=0;
+  for(let p in products){
+    totalBags+=products[p].stock;
+    let low=products[p].stock<10?"low-stock":"";
+    cards+=`<div class="card">${p} Stock: <span class="${low}">${products[p].stock}</span></div>`;
+  }
+  document.getElementById("productCards").innerHTML=cards;
+  document.getElementById("totalPurchase").innerText=totalPurchase.toFixed(2);
+  document.getElementById("totalSales").innerText=totalSales.toFixed(2);
+  document.getElementById("totalProfit").innerText=totalProfit.toFixed(2);
+  document.getElementById("totalUdhari").innerText=totalUdhari.toFixed(2);
+  document.getElementById("totalBags").innerText=totalBags;
+  updateCustomerLedger();
+}
+
+function addPurchase(){
+  let date=document.getElementById("purchaseDate").value;
+  let product=document.getElementById("purchaseProduct").value;
+  let qty=parseInt(document.getElementById("purchaseQty").value);
+  let price=parseInt(document.getElementById("purchasePrice").value);
+  if(!date||!qty||!price) return alert("Fill purchase details");
+  products[product].stock+=qty;
+  products[product].purchasePrice=price;
+  let total=qty*price;
+  totalPurchase+=total;
+  historyData.push({date,type:"Purchase",customer:"-",product,qty,total,udhari:0});
+  renderHistory(historyData);
+  updateDashboard();
+}
+
+function addSale(){
+  let date=document.getElementById("saleDate").value;
+  let customer=document.getElementById("customerName").value.trim();
+  let product=document.getElementById("saleProduct").value;
+  let qty=parseInt(document.getElementById("saleQty").value);
+  let price=parseInt(document.getElementById("salePrice").value);
+  let billType=document.getElementById("billType").value;
+  let payment=document.getElementById("paymentType").value;
+  let partial=parseInt(document.getElementById("partialPayment").value)||0;
+  if(!date||!customer||!qty||!price) return alert("Fill sale details");
+  if(qty>products[product].stock) return alert("Not enough stock!");
+  let total=qty*price; if(billType==="gst") total+=total*0.05;
+  let profit=(price-products[product].purchasePrice)*qty;
+  products[product].stock-=qty;
+  totalSales+=total; totalProfit+=profit;
+  let udhari=0;
+  if(payment==="udhari"){ udhari=total-partial; totalUdhari+=udhari;
+      if(!customerBalances[customer]) customerBalances[customer]={totalUdhari:0, transactions:[]};
+      customerBalances[customer].totalUdhari+=udhari;
+      customerBalances[customer].transactions.push({date,product,qty,total,paid:partial>0,partialPayment:partial}); }
+  historyData.push({date,type:"Sale",customer,product,qty,total,udhari});
+  renderHistory(historyData);
+  updateDashboard();
+}
+
+function renderHistory(data){
+  let tbody="";
+  data.forEach((h,i)=>{
+    tbody+=`<tr>
+      <td>${h.date}</td><td>${h.type}</td><td>${h.customer}</td><td>${h.product}</td><td>${h.qty}</td><td>₹${h.total.toFixed(2)}</td>
+      <td>₹${h.udhari.toFixed(2)}</td>
+      <td><button class="delete-btn" onclick="deleteRow(${i})">X</button></td>
+    </tr>`;
+  });
+  document.getElementById("history").innerHTML=tbody;
+}
+
+function deleteRow(index){
+  let h=historyData[index];
+  if(h.type==="Sale"){ totalSales-=h.total; totalProfit-=(h.total-h.udhari); totalUdhari-=h.udhari; products[h.product].stock+=h.qty;
+      if(h.customer && customerBalances[h.customer]) customerBalances[h.customer].totalUdhari-=h.udhari; }
+  if(h.type==="Purchase"){ totalPurchase-=h.total; products[h.product].stock-=h.qty; }
+  historyData.splice(index,1); renderHistory(historyData); updateDashboard();
+}
+
+function updateCustomerLedger(){
+  let tbody="";
+  for(let c in customerBalances){
+    if(customerBalances[c].totalUdhari>0) tbody+=`<tr><td>${c}</td><td>₹${customerBalances[c].totalUdhari.toFixed(2)}</td></tr>`;
+  }
+  document.getElementById("customerLedger").innerHTML=tbody;
+  searchCustomerLedger();
+}
+
+function searchCustomerLedger(){
+  let name=document.getElementById("searchCustomer").value.trim();
+  let tbody=""; let remaining=0;
+  if(customerBalances[name]){
+    customerBalances[name].transactions.forEach(t=>{
+      tbody+=`<tr>
+        <td>${t.date}</td><td>${t.product}</td><td>${t.qty}</td><td>₹${t.total.toFixed(2)}</td>
+        <td>${t.paid?"Paid":"Udhari"}</td>
+      </tr>`;
+      if(!t.paid) remaining+=t.total-(t.partialPayment||0);
+    });
+  }
+  document.querySelector("#customerHistoryTable tbody").innerHTML=tbody;
+  document.getElementById("customerBalance").innerText=remaining.toFixed(2);
+}
+
+updateDashboard();
+</script>
+
+</body>
+</html>
